@@ -1,25 +1,20 @@
 "use client";
 
 import { useState, useRef, FormEvent, ChangeEvent, DragEvent } from "react";
-// import * as XLSX from "xlsx";
+import * as XLSX from "xlsx";
 
 interface RopaCell {
   value: string | null;
-  source: "initial" | "manual" | "ai";
+  source: "initial" | "manual" | "ai"; // 'initial' (dari API), 'manual', 'ai' (dari chat)
 }
 
 interface RopaData {
-  nama_perusahaan: RopaCell;
-  divisi_unitkerja: RopaCell;
-  no_dokumen: RopaCell;
-  versi: RopaCell;
-  tanggal: RopaCell;
-  no: RopaCell;
+  no_aktivitas: RopaCell;
+  nama_aktivitas: RopaCell;
   unit_kerja: RopaCell;
   departemen: RopaCell;
   penanggung_jawab: RopaCell;
   kedudukan_pemilik_proses: RopaCell;
-  nama_aktivitas: RopaCell;
   deskripsi_tujuan: RopaCell;
   kebijakan_rujukan: RopaCell;
   bentuk_data_pribadi: RopaCell;
@@ -63,144 +58,55 @@ interface RopaResult extends RopaData {
   fileName: string;
 }
 
-const transformApiDataToState = (apiIn: any): RopaData => {
-  const norm = (s: string) => (s || "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^\w]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+const transformApiDataToState = (data: any): RopaData => {
+  const transformed: Partial<RopaData> = {};
+  const allKeys: (keyof Omit<RopaData, "saran_ai">)[] = [
+    "no_aktivitas",
+    "unit_kerja",
+    "departemen",
+    "penanggung_jawab",
+    "kedudukan_pemilik_proses",
+    "nama_aktivitas",
+    "deskripsi_tujuan",
+    "kebijakan_rujukan",
+    "bentuk_data_pribadi",
+    "subjek_data_pribadi",
+    "jenis_data_pribadi",
+    "data_pribadi_spesifik",
+    "sumber_data",
+    "akurat_lengkap",
+    "penyimpanan_data",
+    "metode_pemrosesan",
+    "keputusan_otomatis",
+    "dasar_pemrosesan",
+    "masa_retensi",
+    "kewajiban_hukum",
+    "langkah_teknis_pengamanan",
+    "langkah_organisasi_pengamanan",
+    "kategori_penerima",
+    "profil_penerima",
+    "peran_penerima",
+    "kontak_penerima",
+    "tujuan_pengiriman",
+    "data_dikirim",
+    "perjanjian_kontraktual",
+    "negara_tujuan",
+    "bentuk_dokumen",
+    "mekanisme_transfer",
+    "hak_subjek",
+    "asesmen_risiko",
+    "proses_sebelumnya",
+    "proses_setelahnya",
+    "keterangan_tambahan",
+  ];
 
-  const toCellString = (v: any): string => {
-    const raw = v?.value ?? v;
-    if (Array.isArray(raw)) return raw.join("; ");
-    if (typeof raw === "object") return JSON.stringify(raw);
-    return String(raw);
-  };
-
-  const makeLookup = (obj: any) => {
-    const map = new Map<string, any>();
-    if (obj && typeof obj === "object") {
-      Object.keys(obj).forEach((k) => map.set(norm(k), (obj as any)[k]));
-    }
-    return (labelsOrKeys: string[]) => {
-      for (const key of labelsOrKeys) {
-        const byExact = (obj ?? {})[key];
-        if (byExact !== undefined) return byExact;
-        const byNorm = map.get(norm(key));
-        if (byNorm !== undefined) return byNorm;
-      }
-      return undefined;
-    };
-  };
-
-  const root = Array.isArray(apiIn) ? apiIn[0] : apiIn;
-  const getRoot = makeLookup(root);
-
-  const ropas =
-    getRoot(["Record of Processing Activities"]) ??
-    getRoot(["RoPA"]) ??
-    getRoot(["aktivitas_pemrosesan"]) ??
-    getRoot(["record_of_processing_activities"]) ??
-    [];
-
-  const firstRowObj = Array.isArray(ropas) && ropas.length ? ropas[0] : root;
-  const getRow = makeLookup(firstRowObj);
-
-  const META: Record<keyof Omit<RopaData, "saran_ai" | 
-    "no" | "unit_kerja" | "departemen" | "penanggung_jawab" | "kedudukan_pemilik_proses" |
-    "nama_aktivitas" | "deskripsi_tujuan" | "kebijakan_rujukan" | "bentuk_data_pribadi" |
-    "subjek_data_pribadi" | "jenis_data_pribadi" | "data_pribadi_spesifik" | "sumber_data" |
-    "akurat_lengkap" | "penyimpanan_data" | "metode_pemrosesan" | "keputusan_otomatis" |
-    "dasar_pemrosesan" | "masa_retensi" | "kewajiban_hukum" | "langkah_teknis_pengamanan" |
-    "langkah_organisasi_pengamanan" | "kategori_penerima" | "profil_penerima" |
-    "peran_penerima" | "kontak_penerima" | "tujuan_pengiriman" | "data_dikirim" |
-    "perjanjian_kontraktual" | "negara_tujuan" | "bentuk_dokumen" | "mekanisme_transfer" |
-    "hak_subjek" | "asesmen_risiko" | "proses_sebelumnya" | "proses_setelahnya" |
-    "keterangan_tambahan">, string[]> = {
-    nama_perusahaan: ["Nama Perusahaan", "nama_perusahaan", "company", "company_name"],
-    divisi_unitkerja: ["Divisi/Unit Kerja", "divisi_unitkerja", "divisi", "unit_kerja_divisi"],
-    no_dokumen: ["No. Dokumen", "no_dokumen", "nomor_dokumen"],
-    versi: ["Versi", "versi"],
-    tanggal: ["Tanggal", "tanggal", "date"],
-  };
-
-  const ROW: Record<keyof Pick<RopaData,
-    "no" | "unit_kerja" | "departemen" | "penanggung_jawab" | "kedudukan_pemilik_proses" |
-    "nama_aktivitas" | "deskripsi_tujuan" | "kebijakan_rujukan" | "bentuk_data_pribadi" |
-    "subjek_data_pribadi" | "jenis_data_pribadi" | "data_pribadi_spesifik" | "sumber_data" |
-    "akurat_lengkap" | "penyimpanan_data" | "metode_pemrosesan" | "keputusan_otomatis" |
-    "dasar_pemrosesan" | "masa_retensi" | "kewajiban_hukum" | "langkah_teknis_pengamanan" |
-    "langkah_organisasi_pengamanan" | "kategori_penerima" | "profil_penerima" |
-    "peran_penerima" | "kontak_penerima" | "tujuan_pengiriman" | "data_dikirim" |
-    "perjanjian_kontraktual" | "negara_tujuan" | "bentuk_dokumen" | "mekanisme_transfer" |
-    "hak_subjek" | "asesmen_risiko" | "proses_sebelumnya" | "proses_setelahnya" |
-    "keterangan_tambahan">, string[]> = {
-    no: ["No", "no", "nomor"],
-    unit_kerja: ["Unit Kerja / Divisi", "unit_kerja", "divisi", "unit"],
-    departemen: ["Departemen / Sub-Departemen", "departemen", "sub_departemen"],
-    penanggung_jawab: ["Penanggungjawab Proses", "penanggung_jawab", "pic_proses"],
-    kedudukan_pemilik_proses: ["Kedudukan Pemilik Proses", "kedudukan_pemilik_proses"],
-    nama_aktivitas: ["Nama Aktivitas", "nama_aktivitas", "aktivitas"],
-    deskripsi_tujuan: ["Deskripsi dan Tujuan Pemrosesan", "deskripsi_tujuan", "tujuan_pemrosesan"],
-    kebijakan_rujukan: ["Kebijakan/SOP/IK/Dokumen Rujukan", "kebijakan_rujukan"],
-    bentuk_data_pribadi: ["Bentuk Data Pribadi", "bentuk_data_pribadi"],
-    subjek_data_pribadi: ["Subjek Data Pribadi", "subjek_data_pribadi"],
-    jenis_data_pribadi: ["Jenis Data Pribadi", "jenis_data_pribadi"],
-    data_pribadi_spesifik: ["Data Pribadi Spesifik (Ya/Tidak)", "data_pribadi_spesifik"],
-    sumber_data: ["Sumber Pemerolehan Data Pribadi", "sumber_data", "sumber_pemerolehan"],
-    akurat_lengkap: ["Akurasi dan Kelengkapan Data Pribadi", "akurat_lengkap"],
-    penyimpanan_data: ["Penyimpanan Data Pribadi", "penyimpanan_data", "lokasi_penyimpanan"],
-    metode_pemrosesan: ["Metode Pemrosesan Data Pribadi", "metode_pemrosesan"],
-    keputusan_otomatis: ["Pengambilan Keputusan Terotomasi", "keputusan_otomatis", "automated_decision"],
-    dasar_pemrosesan: ["Dasar Pemrosesan", "dasar_pemrosesan"],
-    masa_retensi: ["Masa Retensi Data Pribadi", "masa_retensi", "retensi"],
-    kewajiban_hukum: ["Kewajiban Hukum untuk menyimpan Data Pribadi", "kewajiban_hukum"],
-    langkah_teknis_pengamanan: ["Langkah Teknis (Technical) Pengamanan Data Pribadi", "langkah_teknis_pengamanan"],
-    langkah_organisasi_pengamanan: ["Langkah Organisasi (Organisational) Pengamanan Data Pribadi", "langkah_organisasi_pengamanan"],
-    kategori_penerima: ["Kategori dan Jenis Penerima Data Pribadi", "kategori_penerima"],
-    profil_penerima: ["Profil Penerima Data Pribadi", "profil_penerima"],
-    peran_penerima: ["Pengendali / Prosesor / Pengendali Bersama", "peran_penerima"],
-    kontak_penerima: ["Kontak Pengendali / Pengendali Bersama / Prosesor", "kontak_penerima"],
-    tujuan_pengiriman: ["Tujuan Pengiriman / Pemrosesan / Berbagi / Akses", "Tujuan Pengiriman / Pemrosesan / Berbagi / Akses Data Pribadi", "tujuan_pengiriman"],
-    data_dikirim: ["Jenis Data Pribadi yang Dikirim", "data_dikirim"],
-    perjanjian_kontraktual: ["Perjanjian Kontraktual dengan penerima Data Pribadi", "perjanjian_kontraktual"],
-    negara_tujuan: ["Negara lain sebagai penerima Transfer Data Pribadi", "negara_tujuan"],
-    bentuk_dokumen: ["Bentuk Dokumen Pengiriman", "bentuk_dokumen"],
-    mekanisme_transfer: ["Mekanisme Transfer", "mekanisme_transfer"],
-    hak_subjek: ["Hak Subjek Data Pribadi yang Berlaku", "hak_subjek"],
-    asesmen_risiko: ["Asesmen Risiko", "asesmen_risiko", "profil_resiko"],
-    proses_sebelumnya: ["Proses / Kegiatan Sebelumnya", "proses_sebelumnya"],
-    proses_setelahnya: ["Proses / Kegiatan Setelahnya", "proses_setelahnya"],
-    keterangan_tambahan: ["Keterangan / Catatan Tambahan", "keterangan_tambahan", "keterangan"],
-  };
-
-  const out: Partial<RopaData> = {};
-
-  (Object.keys(META) as Array<keyof typeof META>).forEach((stateKey) => {
-    const val = getRoot(META[stateKey]);
-    out[stateKey] = { value: toCellString(val), source: "ai" };
+  allKeys.forEach((key) => {
+    transformed[key] = { value: data[key] || null, source: "initial" };
   });
 
-  (Object.keys(ROW) as Array<keyof typeof ROW>).forEach((stateKey) => {
-    const val = getRow(ROW[stateKey]);
-    out[stateKey] = { value: toCellString(val), source: "ai" };
-  });
+  transformed.saran_ai = data.saran_ai || "";
 
-  const saran =
-    getRoot(["saran_ai", "Saran AI", "saran"]) ??
-    getRow(["saran_ai", "Saran AI", "saran"]);
-  out.saran_ai = Array.isArray(saran) ? saran.join(" ") : (saran ?? "");
-
-  (Object.keys(out) as (keyof RopaData)[]).forEach((k) => {
-    if (k !== "saran_ai") {
-      const cell = out[k] as RopaCell;
-      if (cell && (cell.value === "" || cell.value === "null")) {
-        cell.value = null;
-      }
-    }
-  });
-
-  return out as RopaData;
+  return transformed as RopaData;
 };
 
 export default function RopaAnalyzerPage() {
@@ -239,70 +145,59 @@ export default function RopaAnalyzerPage() {
     handleFiles(e.dataTransfer.files);
   };
 
+  // handler analyze file
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-
-  if (files.length === 0) {
-    setError("Silakan pilih satu atau lebih file terlebih dahulu.");
-    return;
-  }
-
-  setIsLoading(true);
-  setError(null);
-  setResults([]);
-  setIsEditMode(false);
-
-  try {
-    const collected: RopaResult[] = [];
-
-    for (const file of files) {
-      const formData = new FormData();
-
-      formData.append("file", file, file.name);
-
-      console.log("[upload] start", file.name);
-
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        body: formData,         
-      });
-
-      if (!res.ok) {
-        let serverErr = "";
-        try {
-          const ct = res.headers.get("content-type") || "";
-          if (ct.includes("application/json")) {
-            const j = await res.json();
-            serverErr = j?.error || JSON.stringify(j);
-          } else {
-            serverErr = await res.text();
-          }
-        } catch {
-          serverErr = `HTTP ${res.status}`;
-        }
-        throw new Error(`Gagal memproses "${file.name}": ${serverErr}`);
-      }
-
-      const dataArray = await res.json(); // <-- backend kamu kirim array
-      const raw = Array.isArray(dataArray) ? dataArray[0] : dataArray;
-
-      console.log("[upload] success", file.name, raw);
-
-      collected.push({
-        ...transformApiDataToState(raw),
-        fileName: file.name,
-      });
+    e.preventDefault();
+    if (files.length === 0) {
+      setError("Silakan pilih satu atau lebih file terlebih dahulu.");
+      return;
     }
+    setIsLoading(true);
+    setError(null);
+    setResults([]);
+    setIsEditMode(false);
 
-    setResults(collected);
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || "Terjadi kesalahan saat mengunggah.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+    // This logic sends one API request PER file, and the API returns an array of results
+    const promises = files.map((file) => {
+      const formData = new FormData();
+      formData.append("datanya", file);
+      return fetch("/api/analyze", {
+        method: "POST",
+        body: formData,
+      })
+        .then((response) => {
+          if (!response.ok) {
+            return response
+              .json()
+              .then((err) =>
+                Promise.reject({ fileName: file.name, error: err.error })
+              );
+          }
+          return response.json();
+        })
+        .then((dataArray) => {
+          // The API returns an array, even for one file, so we take the first element
+          const rawResult = dataArray[0];
+          return {
+            ...transformApiDataToState(rawResult), // ✅ PERBAIKAN DI SINI
+            fileName: file.name,
+          };
+        });
+    });
 
+    try {
+      const allResults = await Promise.all(promises);
+      setResults(allResults);
+    } catch (err: any) {
+      setError(
+        `Gagal memproses file "${err.fileName}": ${
+          err.error || "Terjadi kesalahan tidak diketahui."
+        }`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // handler edit tabel manual
   const handleManualEdit = (
@@ -321,34 +216,54 @@ export default function RopaAnalyzerPage() {
     }
   };
 
-    const handleDownloadExcel = async () => {
-    if (results.length === 0) return;
+  const handleDownloadExcel = () => {
+  if (results.length === 0) return;
 
-    try {
-      const response = await fetch("/api/excel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: results }),
-      });
+  const dataToExport = results.map((result) => ({
+    "No": result.no_aktivitas?.value || "N/A",
+    "Unit Kerja / Divisi": result.unit_kerja?.value || "N/A",
+    "Departemen / Sub-Departemen": result.departemen?.value || "N/A",
+    "Penanggungjawab Proses": result.penanggung_jawab?.value || "N/A",
+    "Kedudukan Pemilik Proses (Pengendali / Prosesor / Pengendali Bersama)": result.kedudukan_pemilik_proses?.value || "N/A",
+    "Nama Aktivitas": result.nama_aktivitas?.value || "N/A",
+    "Deskripsi dan Tujuan Pemrosesan": result.deskripsi_tujuan?.value || "N/A",
+    "Kebijakan/SOP/IK/Dokumen Rujukan": result.kebijakan_rujukan?.value || "N/A",
+    "Bentuk Data Pribadi": result.bentuk_data_pribadi?.value || "N/A",
+    "Subjek Data Pribadi": result.subjek_data_pribadi?.value || "N/A",
+    "Jenis Data Pribadi": result.jenis_data_pribadi?.value || "N/A",
+    "Data Pribadi Spesifik (Ya/Tidak)": result.data_pribadi_spesifik?.value || "N/A",
+    "Sumber Pemerolehan Data Pribadi": result.sumber_data?.value || "N/A",
+    "Akurasi dan Kelengkapan Data Pribadi": result.akurat_lengkap?.value || "N/A",
+    "Penyimpanan Data Pribadi": result.penyimpanan_data?.value || "N/A",
+    "Metode Pemrosesan Data Pribadi": result.metode_pemrosesan?.value || "N/A",
+    "Pengambilan Keputusan Terotomasi": result.keputusan_otomatis?.value || "N/A",
+    "Dasar Pemrosesan": result.dasar_pemrosesan?.value || "N/A",
+    "Masa Retensi Data Pribadi": result.masa_retensi?.value || "N/A",
+    "Kewajiban Hukum untuk menyimpan Data Pribadi": result.kewajiban_hukum?.value || "N/A",
+    "Langkah Teknis (Technical) Pengamanan Data Pribadi": result.langkah_teknis_pengamanan?.value || "N/A",
+    "Langkah Organisasi (Organisational) Pengamanan Data Pribadi": result.langkah_organisasi_pengamanan?.value || "N/A",
+    "Kategori dan Jenis Penerima Data Pribadi": result.kategori_penerima?.value || "N/A",
+    "Profil Penerima Data Pribadi": result.profil_penerima?.value || "N/A",
+    "Pengendali / Prosesor / Pengendali Bersama": result.peran_penerima?.value || "N/A",
+    "Kontak Pengendali / Pengendali Bersama / Prosesor": result.kontak_penerima?.value || "N/A",
+    "Tujuan Pengiriman / Pemrosesan / Berbagi / Akses Data Pribadi": result.tujuan_pengiriman?.value || "N/A",
+    "Jenis Data Pribadi yang Dikirim / Diproses / Dibagikan / Diberikan Akses": result.data_dikirim?.value || "N/A",
+    "Perjanjian Kontraktual dengan penerima Data Pribadi": result.perjanjian_kontraktual?.value || "N/A",
+    "Negara lain sebagai penerima Transfer Data Pribadi": result.negara_tujuan?.value || "N/A",
+    "Bentuk Dokumen Pengiriman": result.bentuk_dokumen?.value || "N/A",
+    "Mekanisme Transfer": result.mekanisme_transfer?.value || "N/A",
+    "Hak Subjek Data Pribadi yang Berlaku": result.hak_subjek?.value || "N/A",
+    "Asesmen Risiko": result.asesmen_risiko?.value || "N/A",
+    "Proses / Kegiatan Sebelumnya": result.proses_sebelumnya?.value || "N/A",
+    "Proses / Kegiatan Setelahnya": result.proses_setelahnya?.value || "N/A",
+    "Keterangan / Catatan Tambahan": result.keterangan_tambahan?.value || "N/A",
+  }));
 
-      if (!response.ok) throw new Error("Gagal membuat file Excel");
-
-      // Ambil hasil blob (binary Excel)
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      // Buat link download
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "Hasil_Analisis_RoPA.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
-      alert("Terjadi kesalahan saat mengunduh Excel dari server");
-    }
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "RoPA_Data");
+    worksheet["!cols"] = Array(26).fill({ wch: 35 });
+    XLSX.writeFile(workbook, "Hasil_Analisis_Multi-File.xlsx");
   };
 
   // handler chat ato brainstorming
@@ -403,12 +318,7 @@ export default function RopaAnalyzerPage() {
   };
 
   const tableFields: (keyof Omit<RopaData, "saran_ai">)[] = [
-  "nama_perusahaan",  
-  "divisi_unitkerja",  
-  "no_dokumen",        
-  "versi",
-  "tanggal",        
-  "no",
+  "no_aktivitas",
   "nama_aktivitas",
   "unit_kerja",
   "departemen",

@@ -10,7 +10,7 @@ export default function Sidebar() {
   return (
     <div className={`${collapsed ? "w-16" : "w-64"} bg-black h-screen flex flex-col transition-all duration-300`}>
       <div className="p-6 flex items-center justify-between">
-        {!collapsed && <h1 className="text-gray-400 text-sm font-medium">Desktop - 1</h1>}
+        {!collapsed && <h1 className="text-gray-400 text-sm font-medium">RoPA</h1>}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="text-gray-400 hover:text-white transition-colors p-1"
