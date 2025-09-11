@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
     const prompt = `
       Anda adalah asisten AI yang bertugas sebagai spesialis Kepatuhan Privasi Data.

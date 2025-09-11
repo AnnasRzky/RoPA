@@ -321,23 +321,51 @@ export default function RopaAnalyzerPage() {
     }
   };
 
-    const handleDownloadExcel = async () => {
+  //   const handleDownloadExcel = async () => {
+  //   if (results.length === 0) return;
+
+  //   try {
+  //     const response = await fetch("/api/excel", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ data: results }),
+  //     });
+
+  //     if (!response.ok) throw new Error("Gagal membuat file Excel");
+
+  //     // Ambil hasil blob (binary Excel)
+  //     const blob = await response.blob();
+  //     const url = window.URL.createObjectURL(blob);
+
+  //     // Buat link download
+  //     const a = document.createElement("a");
+  //     a.href = url;
+  //     a.download = "Hasil_Analisis_RoPA.xlsx";
+  //     document.body.appendChild(a);
+  //     a.click();
+  //     a.remove();
+  //     window.URL.revokeObjectURL(url);
+  //   } catch (err) {
+  //     console.error(err);
+  //     alert("Terjadi kesalahan saat mengunduh Excel dari server");
+  //   }
+  // };
+
+  // sama persis seperti punyamu, cuma ganti URL
+  const handleDownloadExcel = async () => {
     if (results.length === 0) return;
 
     try {
       const response = await fetch("/api/excel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: results }),
+        body: JSON.stringify({ data: results }), // TETAP kirim { data: results }
       });
 
       if (!response.ok) throw new Error("Gagal membuat file Excel");
 
-      // Ambil hasil blob (binary Excel)
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-
-      // Buat link download
       const a = document.createElement("a");
       a.href = url;
       a.download = "Hasil_Analisis_RoPA.xlsx";
@@ -447,6 +475,53 @@ export default function RopaAnalyzerPage() {
   "keterangan_tambahan",
 ];
 
+function toLineFromObject(o: any): string {
+  if (!o || typeof o !== "object") return "";
+  // Prioritaskan key yang sering muncul
+  const preferred = [
+    "note", "catatan", "saran", "recommendation", "rekomendasi",
+    "message", "text", "reason", "alasan", "detail", "value", "desc"
+  ];
+  for (const k of preferred) {
+    if (typeof o[k] === "string" && o[k].trim()) return o[k].trim();
+  }
+  if (typeof o.field === "string" && typeof o.reason === "string") {
+    return `[${o.field}] ${o.reason}`;
+  }
+  // fallback: gabungkan beberapa pasangan key:value
+  const keys = Object.keys(o).slice(0, 3);
+  if (keys.length) {
+    return keys
+      .map((k) => `${k}: ${typeof o[k] === "string" ? o[k] : JSON.stringify(o[k])}`)
+      .join(" — ");
+  }
+  return JSON.stringify(o);
+}
+
+function normalizeSaran(input: any): string[] {
+  if (!input) return [];
+  if (typeof input === "string") {
+    // kalau ternyata string JSON, coba parse
+    try {
+      const parsed = JSON.parse(input);
+      return normalizeSaran(parsed);
+    } catch {
+      return input
+        .split(/\n+/)
+        .map((l) => l.replace(/^\s*[-•]\s*/g, "").trim())
+        .filter(Boolean);
+    }
+  }
+  if (Array.isArray(input)) {
+    return input.flatMap((it) => normalizeSaran(it));
+  }
+  if (typeof input === "object") {
+    const line = toLineFromObject(input);
+    return line ? [line] : [];
+  }
+  return [String(input)];
+}
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4 font-sans">
       <div className="w-full max-w-7xl bg-white rounded-xl shadow-lg p-8 space-y-8">
@@ -552,7 +627,6 @@ export default function RopaAnalyzerPage() {
                             </td>
                           );
 
-                        // LANGKAH 3: Penanda visual baru
                         const bgColor =
                           cell.source === "manual"
                             ? "bg-green-50"
@@ -601,30 +675,39 @@ export default function RopaAnalyzerPage() {
               </table>
             </div>
             <div className="space-y-4">
-              {results.map((result, index) =>
-                result.saran_ai ? (
-                  <div
-                    key={index}
-                    className="p-4 bg-yellow-50 border-l-4 border-yellow-400"
+                <div className="text-center flex items-center justify-center gap-3">
+                  <button
+                    onClick={handleDownloadExcel}
+                    className="px-6 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 transition"
                   >
-                    <h4 className="font-bold text-yellow-800">
-                      Saran dari AI untuk{" "}
-                      <span className="font-mono">{result.fileName}</span>
-                    </h4>
-                    <p className="text-sm text-yellow-700">{result.saran_ai}</p>
-                  </div>
-                ) : null
-              )}
-              <div className="text-center">
-                <button
-                  onClick={handleDownloadExcel}
-                  className="px-6 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 transition"
-                >
-                  Download Semua Hasil ke Excel
-                </button>
+                    Download Semua Hasil ke Excel
+                  </button>
+                </div>
+
+                {results.map((result, index) => {
+                  const items = normalizeSaran(result.saran_ai);
+                  if (!items.length) return null;
+                  return (
+                    <div
+                      key={index}
+                      className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm"
+                    >
+                      <h4 className="font-semibold text-amber-900">
+                        💡 Saran dari AI untuk{" "}
+                        <span className="font-mono">{result.fileName}</span>
+                      </h4>
+                      <ul className="mt-2 max-h-56 overflow-auto pr-2 space-y-2 list-disc pl-6 marker:text-amber-700">
+                        {items.map((it, i) => (
+                          <li key={i} className="text-sm leading-relaxed text-amber-900">
+                            {it}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
         )}
         {results.length > 0 && (
           <div className="pt-6 border-t">
