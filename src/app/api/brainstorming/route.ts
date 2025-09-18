@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import genAI from "@/lib/gemini";
 
-// Helper untuk menyederhanakan data state sebelum dikirim ke AI
 const simplifyContext = (context: any[]) => {
   return context.map((row) => {
     const simplifiedRow: { [key: string]: any } = { fileName: row.fileName };

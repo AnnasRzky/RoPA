@@ -40,7 +40,6 @@ export async function POST(req: NextRequest) {
       files.map(async (file) => {
         const allowedMimeTypes = ["image/png", "image/jpeg", "application/pdf"];
         if (!allowedMimeTypes.includes(file.type)) {
-          // Melemparkan error jika ada file yang tidak didukung
           throw new Error(`Unsupported file type: ${file.type}`);
         }
         const buffer = await streamToBuffer(file.stream());
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
       Anda adalah asisten AI yang bertugas sebagai spesialis Kepatuhan Privasi Data.
@@ -123,10 +122,16 @@ export async function POST(req: NextRequest) {
       --- ATURAN PENTING ---
       1.  **Analisis Holistik**: Baca dan pahami seluruh dokumen untuk menemukan informasi relevan, bahkan jika tidak disebutkan secara eksplisit.
       2.  **Penanganan Data Hilang**: Jika informasi untuk kolom mana pun TIDAK DAPAT DITEMUKAN, isi nilainya dengan 'null'.
-      3.  **Berikan Saran Cerdas**: Buat properti bernama "saran_ai". Jika ada nilai yang 'null', berikan saran yang paling logis berdasarkan konteks. Jika tidak ada konteks untuk memberikan saran, berikan string kosong.
-      4.  **Format Output**: Kembalikan hasilnya HANYA dalam format JSON tunggal yang valid tanpa teks tambahan.
+      3.  **Berikan Saran Cerdas**: Buat properti bernama "saran_ai". Jika ada nilai yang 'null', berikan saran yang paling logis berdasarkan konteks.
+      4.  **Format Output**: 
+          - Kembalikan hasil HANYA dalam format JSON tunggal yang valid tanpa teks tambahan.
+          - Properti "saran_ai" HARUS berupa ARRAY JSON, di mana setiap saran menjadi elemen array yang terpisah.
+          - Contoh:
+            "saran_ai": [
+              "Nama Perusahaan: Tidak ditemukan, sarankan untuk diisi PT ABC.",
+              "Versi: Tidak ditemukan, sarankan untuk diisi '1.0'."]
 
-       --- ATURAN PENTING UNTUK 'saran_ai' ---
+       --- ATURAN PENTING UNTUK "saran_ai" ---
       Setelah mengekstrak semua data, Anda HARUS membuat properti "saran_ai". Properti ini memiliki DUA tujuan:
 
       1.  **REKOMENDASI NILAI KOSONG**:
@@ -152,18 +157,14 @@ export async function POST(req: NextRequest) {
       const buffer = await streamToBuffer(file.stream());
       const imagePart = fileToGenerativePart(buffer, file.type);
 
-      // Panggil AI untuk SETIAP file secara terpisah
       const result = await model.generateContent([prompt, imagePart]);
       const responseText = result.response.text();
 
-      // Parsing JSON untuk setiap hasil
       return JSON.parse(responseText.replace(/```json|```/g, "").trim());
     });
 
-    // Tunggu semua proses selesai
     const allJsonResults = await Promise.all(promises);
 
-    // Kembalikan ARRAY berisi semua hasil JSON
     return NextResponse.json(allJsonResults);
   } catch (error) {
     console.error("Error processing file:", error);

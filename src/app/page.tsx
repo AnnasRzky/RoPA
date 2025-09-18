@@ -283,7 +283,7 @@ export default function RopaAnalyzerPage() {
         throw new Error(`Gagal memproses "${file.name}": ${serverErr}`);
       }
 
-      const dataArray = await res.json(); // <-- backend kamu kirim array
+      const dataArray = await res.json();
       const raw = Array.isArray(dataArray) ? dataArray[0] : dataArray;
 
       console.log("[upload] success", file.name, raw);
@@ -303,8 +303,6 @@ export default function RopaAnalyzerPage() {
   }
 };
 
-
-  // handler edit tabel manual
   const handleManualEdit = (
     resultIndex: number,
     fieldName: keyof RopaData,
@@ -321,37 +319,6 @@ export default function RopaAnalyzerPage() {
     }
   };
 
-  //   const handleDownloadExcel = async () => {
-  //   if (results.length === 0) return;
-
-  //   try {
-  //     const response = await fetch("/api/excel", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ data: results }),
-  //     });
-
-  //     if (!response.ok) throw new Error("Gagal membuat file Excel");
-
-  //     // Ambil hasil blob (binary Excel)
-  //     const blob = await response.blob();
-  //     const url = window.URL.createObjectURL(blob);
-
-  //     // Buat link download
-  //     const a = document.createElement("a");
-  //     a.href = url;
-  //     a.download = "Hasil_Analisis_RoPA.xlsx";
-  //     document.body.appendChild(a);
-  //     a.click();
-  //     a.remove();
-  //     window.URL.revokeObjectURL(url);
-  //   } catch (err) {
-  //     console.error(err);
-  //     alert("Terjadi kesalahan saat mengunduh Excel dari server");
-  //   }
-  // };
-
-  // sama persis seperti punyamu, cuma ganti URL
   const handleDownloadExcel = async () => {
     if (results.length === 0) return;
 
@@ -359,7 +326,7 @@ export default function RopaAnalyzerPage() {
       const response = await fetch("/api/excel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: results }), // TETAP kirim { data: results }
+        body: JSON.stringify({ data: results }),
       });
 
       if (!response.ok) throw new Error("Gagal membuat file Excel");
@@ -379,7 +346,6 @@ export default function RopaAnalyzerPage() {
     }
   };
 
-  // handler chat ato brainstorming
   const handleChatSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!chatInput.trim() || results.length === 0) return;
@@ -401,7 +367,6 @@ export default function RopaAnalyzerPage() {
       const aiMessage: ChatMessage = { sender: "ai", text: res.answer };
       setChatHistory((prev) => [...prev, aiMessage]);
 
-      //  update data tabel dari chat
       if (res.updatedData && Array.isArray(res.updatedData)) {
         const newResults = [...results];
         res.updatedData.forEach(
@@ -414,7 +379,7 @@ export default function RopaAnalyzerPage() {
               const targetCell = newResults[resultIndex][fieldName] as RopaCell;
               if (targetCell) {
                 targetCell.value = update.value;
-                targetCell.source = "ai"; // Tandai sebagai editan 'ai'
+                targetCell.source = "ai";
               }
             }
           }
@@ -501,7 +466,6 @@ function toLineFromObject(o: any): string {
 function normalizeSaran(input: any): string[] {
   if (!input) return [];
   if (typeof input === "string") {
-    // kalau ternyata string JSON, coba parse
     try {
       const parsed = JSON.parse(input);
       return normalizeSaran(parsed);
