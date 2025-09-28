@@ -31,7 +31,9 @@ function cloneRowStyle(ws: ExcelJS.Worksheet, fromRowNo: number, toRowNo: number
     const fc = from.getCell(c);
     const tc = to.getCell(c);
     tc.style = JSON.parse(JSON.stringify(fc.style || {}));
-    tc.alignment = fc.alignment ? { ...fc.alignment } : undefined;
+    if (fc.alignment) {
+      tc.alignment = { ...fc.alignment };
+    }
     tc.numFmt = fc.numFmt;
     tc.value = null;
   }

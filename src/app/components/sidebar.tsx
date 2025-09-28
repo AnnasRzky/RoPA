@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { Grid3X3, FileText, MessageSquare, Menu, X } from "lucide-react";
 import Link from "next/link";
 
-export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+interface SidebarProps {
+  collapsed: boolean;
+  setCollapsed: (value: boolean) => void;
+}
 
+export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
   return (
-    <div className={`${collapsed ? "w-16" : "w-64"} bg-black h-screen flex flex-col transition-all duration-300`}>
+    <div className="h-screen flex flex-col transition-all duration-300">
       <div className="p-6 flex items-center justify-between">
         {!collapsed && <h1 className="text-gray-400 text-sm font-medium">RoPA</h1>}
         <button
@@ -21,12 +23,18 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-4">
         <div className="space-y-2">
-          <Link href="/" className="flex items-center px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
+          <Link
+            href="/"
+            className="flex items-center px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+          >
             <Grid3X3 className="w-5 h-5 mr-3" />
-            {!collapsed && "Dashboard"}
+            {!collapsed && "WorkSpace"}
           </Link>
 
-          <Link href="/records" className="flex items-center px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
+          <Link
+            href="/records"
+            className="flex items-center px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+          >
             <FileText className="w-5 h-5 mr-3" />
             {!collapsed && "Records"}
           </Link>

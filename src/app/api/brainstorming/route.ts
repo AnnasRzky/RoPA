@@ -5,7 +5,9 @@ const simplifyContext = (context: any[]) => {
   return context.map((row) => {
     const simplifiedRow: { [key: string]: any } = { fileName: row.fileName };
     for (const key in row) {
-      if (key !== "fileName" && key !== "saran_ai" && row[key]?.value) {
+      if (key === "saran_ai") {
+        simplifiedRow.saran_ai = row.saran_ai; 
+      } else if (key !== "fileName" && row[key]?.value) {
         simplifiedRow[key] = row[key].value;
       }
     }
@@ -24,44 +26,94 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const simplifiedData = simplifyContext(context);
 
     const prompt = `
-      Anda adalah asisten analis data yang sangat teliti dan membantu.
-      Tugas Anda adalah menjawab pertanyaan pengguna atau memodifikasi data berdasarkan konteks yang diberikan.
-      Konteks adalah array dari objek JSON, di mana setiap objek merepresentasikan satu baris data dari file yang berbeda, diidentifikasi oleh "fileName".
+  Anda adalah asisten analis data yang teliti dan cerdas.
+  Tugas Anda adalah membantu pengguna dalam memahami dan memodifikasi data hasil analisis dokumen RoPA (Record of Processing Activities).
 
-      ## Aturan Penting:
-      1.  **Jika Pengguna Hanya Bertanya**: Jawab pertanyaan berdasarkan data yang ada. Kembalikan HANYA properti "answer" berisi jawaban Anda.
-      2.  **Jika Pengguna Meminta Modifikasi** (misal: "ubah", "ganti", "isi kolom X untuk file Y"):
-          - Identifikasi **fileName** target, **field** yang akan diubah, dan **nilai barunya**.
-          - Kembalikan properti "answer" berisi konfirmasi Anda (misal: "Baik, sudah saya ubah.").
-          - Kembalikan properti "updatedData", yaitu sebuah ARRAY berisi objek perubahan. Setiap objek harus memiliki format: { "fileName": "nama_file.pdf", "field": "nama_kolom", "value": "nilai_baru" }.
-      3.  Selalu gunakan key JSON yang sama persis seperti di konteks (contoh: 'no_aktivitas', 'unit_kerja').
-      4.  Jika pengguna meminta untuk mengubah sesuatu di semua file, buat objek perubahan untuk setiap file dalam array "updatedData".
+  Setiap data yang Anda terima berupa **array JSON**, di mana:
+  - Setiap objek mewakili satu file yang dianalisis.
+  - Masing-masing memiliki properti:
+    - "fileName": nama file asal.
+    - Kolom-kolom tabel seperti "nama_perusahaan", "versi", "unit_kerja", dll.
+    - "saran_ai": ARRAY berisi rekomendasi untuk kolom yang kosong atau tidak valid.
 
-      ## Konteks Data Saat Ini:
-      \`\`\`json
-      ${JSON.stringify(simplifiedData, null, 2)}
-      \`\`\`
+  ---
 
-      ## Pertanyaan Pengguna:
-      "${question}"
+  ## **Aturan Utama:**
+  1. **Jawaban Biasa (tanpa modifikasi)**
+    - Jika pengguna hanya bertanya atau meminta penjelasan:
+      - Berikan jawaban yang jelas berdasarkan data dan saran yang ada.
+      - Kembalikan JSON dengan **hanya properti "answer"**.
 
-      ## Contoh Respons untuk Modifikasi:
+      Contoh:
+      'json
       {
-        "answer": "Ok, saya telah mengubah Penanggung Jawab untuk file 'memo.pdf' menjadi 'Direktur IT'.",
+        "answer": "Ada 2 file yang dianalisis. File pertama adalah 'RoPA.pdf' dan file kedua adalah 'Dokumen2.pdf'."
+      }
+      '
+
+  2. **Permintaan Modifikasi Data**
+    - Jika pengguna ingin memperbarui data dalam tabel:
+      - Identifikasi dengan tepat:
+        - **fileName** target (jika disebutkan).
+        - **field** yang ingin diubah (gunakan key JSON persis seperti di data).
+        - **nilai baru** yang akan diisi.
+      - Kembalikan dua properti:
+        - **answer** → kalimat konfirmasi.
+        - **updatedData** → array perubahan dengan format:
+          'json
+          {
+            "fileName": "nama_file.pdf",
+            "field": "nama_kolom",
+            "value": "nilai_baru"
+          }
+          '
+
+      Contoh:
+      'json
+      {
+        "answer": "Baik, saya telah mengubah Penanggung Jawab di file 'RoPA.pdf' menjadi 'Direktur IT'.",
         "updatedData": [
           {
-            "fileName": "memo.pdf",
+            "fileName": "RoPA.pdf",
             "field": "penanggung_jawab",
             "value": "Direktur IT"
           }
         ]
       }
-    `;
+      '
+
+  3. **Jika Pengguna Meminta Isi Otomatis dari Saran**
+    - Jika pengguna berkata seperti: *"Isi saran ke dalam tabel"*:
+      - Gunakan semua item dari **"saran_ai"** yang relevan.
+      - Tentukan kolom mana yang harus diisi dan nilainya.
+      - Kembalikan dalam format 'updatedData' seperti di atas.
+
+  4. **Perubahan Global (Semua File)**
+    - Jika pengguna ingin mengubah sesuatu di semua file sekaligus:
+      - Buat objek perubahan untuk setiap file dalam array 'updatedData'.
+
+  5. **Format Output yang Ketat**
+    - Jawaban akhir **HANYA dalam format JSON valid** tanpa teks tambahan di luar JSON.
+    - Jangan sertakan markdown, komentar, atau penjelasan lain.
+
+  ---
+
+  ## **Data Saat Ini (Context)**
+  \`\`\`json
+  ${JSON.stringify(simplifiedData, null, 2)}
+  \`\`\`
+
+  ## **Pertanyaan Pengguna**
+  "${question}"
+
+  ---
+  Pastikan hasil akhir **selalu JSON valid** agar dapat diproses oleh sistem.
+`;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
