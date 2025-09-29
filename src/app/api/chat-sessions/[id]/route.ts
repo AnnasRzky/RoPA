@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-/**
- * GET /api/chat/[id]
- * Mengambil data lengkap untuk 1 ChatSession
- * Termasuk: session, uploaded files, records, brainstorms, dan messages
- */
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
@@ -20,14 +15,14 @@ export async function GET(
     const session = await prisma.chatSession.findUnique({
       where: { id },
       include: {
-        uploadedFiles: true, // Semua file yang diupload user
+        uploadedFiles: true, 
         records: {
           include: {
-            sourceFile: true, // Relasi ke file asal yang dianalisis
+            sourceFile: true, 
           },
         },
-        brainstorms: true, // Riwayat brainstorming
-        messages: true,    // Pesan chat user & AI
+        brainstorms: true, 
+        messages: true,  
       },
     });
 
@@ -45,10 +40,6 @@ export async function GET(
   }
 }
 
-/**
- * DELETE /api/chat/[id]
- * Menghapus 1 ChatSession beserta semua relasi (cascading delete)
- */
 export async function DELETE(
   req: Request,
   { params }: { params: { id: string } }
@@ -60,13 +51,11 @@ export async function DELETE(
   }
 
   try {
-    // Hapus data berurutan, karena Prisma belum mendukung cascading secara langsung
     await prisma.brainstorm.deleteMany({ where: { sessionId: id } });
     await prisma.chatMessage.deleteMany({ where: { sessionId: id } });
     await prisma.record.deleteMany({ where: { chatSessionId: id } });
     await prisma.uploadedFile.deleteMany({ where: { sessionId: id } });
 
-    // Terakhir, hapus session
     await prisma.chatSession.delete({ where: { id } });
 
     return NextResponse.json({ message: "Session deleted successfully" });

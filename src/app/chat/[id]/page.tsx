@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, FormEvent, ChangeEvent, DragEvent } from "react";
+import { useParams } from "next/navigation";
 
 interface RopaCell {
   value: string | null;
@@ -193,7 +194,6 @@ const transformApiDataToState = (apiIn: any): RopaData => {
   const saran =
     getRoot(["saran_ai", "Saran AI", "saran"]) ??
     getRow(["saran_ai", "Saran AI", "saran"]);
-  // out.saran_ai = Array.isArray(saran) ? saran.join(" ") : (saran ?? "");
   out.saran_ai = Array.isArray(saran) ? saran : [saran].filter(Boolean);
 
 
@@ -210,7 +210,6 @@ const transformApiDataToState = (apiIn: any): RopaData => {
 };
 
 export default function RopaAnalyzerPage() {
-  // const [files, setFiles] = useState<File[]>([]);
   const [files, setFiles] = useState<PreviewFile[]>([]);
   const [results, setResults] = useState<RopaResult[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -220,17 +219,14 @@ export default function RopaAnalyzerPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const params = useParams();
+  const sessionId = params?.id as string;
 
-  // const handleFiles = (selectedFiles: FileList | null) => {
-  //   if (selectedFiles && selectedFiles.length > 0) {
-  //     setFiles(Array.from(selectedFiles));
-  //   }
-  // };
   const handleFiles = (selectedFiles: FileList | null) => {
   if (selectedFiles && selectedFiles.length > 0) {
     const mappedFiles = Array.from(selectedFiles).map((file) => ({
       file,
-      preview: URL.createObjectURL(file), // generate preview URL
+      preview: URL.createObjectURL(file),
     }));
 
     setFiles(mappedFiles);
@@ -256,6 +252,69 @@ export default function RopaAnalyzerPage() {
     handleFiles(e.dataTransfer.files);
   };
 
+// const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+//   e.preventDefault();
+
+//   if (files.length === 0) {
+//     setError("Silakan pilih satu atau lebih file terlebih dahulu.");
+//     return;
+//   }
+
+//   setIsLoading(true);
+//   setError(null);
+//   setResults([]);
+//   setIsEditMode(false);
+
+//   try {
+//     const collected: RopaResult[] = [];
+
+//     for (const item of files) {
+//       const formData = new FormData();
+
+//       formData.append("file", item.file, item.file.name);
+
+//       console.log("[upload] start", item.file.name);
+
+//       const res = await fetch("/api/analyze", {
+//         method: "POST",
+//         body: formData,
+//       });
+
+//       if (!res.ok) {
+//         let serverErr = "";
+//         try {
+//           const ct = res.headers.get("content-type") || "";
+//           if (ct.includes("application/json")) {
+//             const j = await res.json();
+//             serverErr = j?.error || JSON.stringify(j);
+//           } else {
+//             serverErr = await res.text();
+//           }
+//         } catch {
+//           serverErr = `HTTP ${res.status}`;
+//         }
+//         throw new Error(`Gagal memproses "${item.file.name}": ${serverErr}`);
+//       }
+
+//       const dataArray = await res.json();
+//       const raw = Array.isArray(dataArray) ? dataArray[0] : dataArray;
+
+//       console.log("[upload] success", item.file.name, raw);
+
+//       collected.push({
+//         ...transformApiDataToState(raw),
+//         fileName: item.file.name,
+//       });
+//     }
+
+//     setResults(collected);
+//   } catch (err: any) {
+//     console.error(err);
+//     setError(err?.message || "Terjadi kesalahan saat mengunggah.");
+//   } finally {
+//     setIsLoading(false);
+//   }
+// };
 const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
 
@@ -274,42 +333,38 @@ const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
 
     for (const item of files) {
       const formData = new FormData();
-
-      // Karena sekarang setiap elemen di `files` adalah { file, preview }
       formData.append("file", item.file, item.file.name);
 
-      console.log("[upload] start", item.file.name);
-
-      const res = await fetch("/api/analyze", {
+      const analyzeRes = await fetch("/api/analyze", {
         method: "POST",
         body: formData,
       });
 
-      if (!res.ok) {
-        let serverErr = "";
-        try {
-          const ct = res.headers.get("content-type") || "";
-          if (ct.includes("application/json")) {
-            const j = await res.json();
-            serverErr = j?.error || JSON.stringify(j);
-          } else {
-            serverErr = await res.text();
-          }
-        } catch {
-          serverErr = `HTTP ${res.status}`;
-        }
-        throw new Error(`Gagal memproses "${item.file.name}": ${serverErr}`);
+      if (!analyzeRes.ok) {
+        throw new Error(`Gagal analisis file ${item.file.name}`);
       }
 
-      const dataArray = await res.json();
-      const raw = Array.isArray(dataArray) ? dataArray[0] : dataArray;
-
-      console.log("[upload] success", item.file.name, raw);
+      const analyzeData = await analyzeRes.json();
+      const raw = Array.isArray(analyzeData) ? analyzeData[0] : analyzeData;
 
       collected.push({
         ...transformApiDataToState(raw),
         fileName: item.file.name,
       });
+
+      const uploadForm = new FormData();
+      uploadForm.append("sessionId", sessionId); 
+      uploadForm.append("files", item.file);
+
+      const uploadRes = await fetch("/api/upload-files", {
+        method: "POST",
+        body: uploadForm,
+      });
+
+      if (!uploadRes.ok) {
+        const errMsg = await uploadRes.text();
+        throw new Error(`Gagal upload file: ${errMsg}`);
+      }
     }
 
     setResults(collected);

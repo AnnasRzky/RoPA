@@ -6,95 +6,71 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // directUrl= env("DIRECT_URL")
 }
 
-
-//
-// Chat session untuk mengelola percakapan dan brainstorming
-//
 model ChatSession {
   id          String         @id @default(uuid())
   title       String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  // Relasi
   messages    ChatMessage[]
   brainstorms Brainstorm[]
   records     Record[]
   uploadedFiles UploadedFile[]
 }
 
-//
-// Menyimpan pesan dari user dan AI
-//
 model ChatMessage {
   id          String       @id @default(uuid())
   sender      ChatSender
   text        String
   createdAt   DateTime     @default(now())
 
-  // Relasi ke ChatSession
   sessionId   String
   session     ChatSession  @relation(fields: [sessionId], references: [id])
 }
 
-//
-// Menyimpan brainstorming dan update dari AI
-//
 model Brainstorm {
   id          String       @id @default(uuid())
-  question    String       // pertanyaan dari user
-  answer      String       // jawaban dari AI
-  updatedData Json?        // update data hasil analisis
+  question    String       
+  answer      String       
+  updatedData Json?        
   createdAt   DateTime     @default(now())
 
-  // Relasi ke ChatSession
   sessionId   String
   session     ChatSession  @relation(fields: [sessionId], references: [id])
 }
 
-//
-// File yang diupload user untuk dianalisis
-//
 model UploadedFile {
   id          String       @id @default(uuid())
-  fileName    String       // nama file asli
-  fileUrl     String       // URL file di Cloudinary
-  fileType    String       // "pdf" atau "image/png", dsb
+  fileName    String       
+  fileUrl     String       
+  fileType    String       
   createdAt   DateTime     @default(now())
 
-  // Relasi ke ChatSession
   sessionId   String
   session     ChatSession  @relation(fields: [sessionId], references: [id])
 
-  records     Record[]     // Record hasil analisis
+  records     Record[]
 }
 
-//
-// Record hasil analisis dan file final setelah edit
-//
 model Record {
   id            String       @id @default(uuid())
-  fileName      String       // nama file final hasil analisis
-  resultFileUrl String?      // URL file final (xlsx) di Cloudinary
+  fileName      String       
+  resultFileUrl String?      
   analyzedAt    DateTime     @default(now())
-  data          Json         // JSON hasil analisis table
+  data          Json         
 
   createdAt     DateTime     @default(now())
 
-  // Relasi ke ChatSession
   chatSessionId String
   chatSession   ChatSession  @relation(fields: [chatSessionId], references: [id])
 
-  // Relasi ke file awal yang dianalisis
   sourceFileId  String
   sourceFile    UploadedFile @relation(fields: [sourceFileId], references: [id])
 }
