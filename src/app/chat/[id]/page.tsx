@@ -252,69 +252,22 @@ export default function RopaAnalyzerPage() {
     handleFiles(e.dataTransfer.files);
   };
 
-// const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-//   e.preventDefault();
+  const handleManualEdit = (
+    resultIndex: number,
+    fieldName: keyof RopaData,
+    newValue: string
+  ) => {
+    const newResults = [...results];
+    if (fieldName in newResults[resultIndex]) {
+      const targetCell = newResults[resultIndex][fieldName] as RopaCell;
+      if (targetCell) {
+        targetCell.value = newValue;
+        targetCell.source = "manual";
+        setResults(newResults);
+      }
+    }
+  };
 
-//   if (files.length === 0) {
-//     setError("Silakan pilih satu atau lebih file terlebih dahulu.");
-//     return;
-//   }
-
-//   setIsLoading(true);
-//   setError(null);
-//   setResults([]);
-//   setIsEditMode(false);
-
-//   try {
-//     const collected: RopaResult[] = [];
-
-//     for (const item of files) {
-//       const formData = new FormData();
-
-//       formData.append("file", item.file, item.file.name);
-
-//       console.log("[upload] start", item.file.name);
-
-//       const res = await fetch("/api/analyze", {
-//         method: "POST",
-//         body: formData,
-//       });
-
-//       if (!res.ok) {
-//         let serverErr = "";
-//         try {
-//           const ct = res.headers.get("content-type") || "";
-//           if (ct.includes("application/json")) {
-//             const j = await res.json();
-//             serverErr = j?.error || JSON.stringify(j);
-//           } else {
-//             serverErr = await res.text();
-//           }
-//         } catch {
-//           serverErr = `HTTP ${res.status}`;
-//         }
-//         throw new Error(`Gagal memproses "${item.file.name}": ${serverErr}`);
-//       }
-
-//       const dataArray = await res.json();
-//       const raw = Array.isArray(dataArray) ? dataArray[0] : dataArray;
-
-//       console.log("[upload] success", item.file.name, raw);
-
-//       collected.push({
-//         ...transformApiDataToState(raw),
-//         fileName: item.file.name,
-//       });
-//     }
-
-//     setResults(collected);
-//   } catch (err: any) {
-//     console.error(err);
-//     setError(err?.message || "Terjadi kesalahan saat mengunggah.");
-//   } finally {
-//     setIsLoading(false);
-//   }
-// };
 const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
 
@@ -340,20 +293,20 @@ const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         body: formData,
       });
 
-      if (!analyzeRes.ok) {
-        throw new Error(`Gagal analisis file ${item.file.name}`);
-      }
+      if (!analyzeRes.ok) throw new Error(`Gagal analisis file ${item.file.name}`);
 
       const analyzeData = await analyzeRes.json();
       const raw = Array.isArray(analyzeData) ? analyzeData[0] : analyzeData;
 
-      collected.push({
+      const transformed = {
         ...transformApiDataToState(raw),
         fileName: item.file.name,
-      });
+      };
+
+      collected.push(transformed);
 
       const uploadForm = new FormData();
-      uploadForm.append("sessionId", sessionId); 
+      uploadForm.append("sessionId", sessionId);
       uploadForm.append("files", item.file);
 
       const uploadRes = await fetch("/api/upload-files", {
@@ -361,63 +314,69 @@ const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         body: uploadForm,
       });
 
-      if (!uploadRes.ok) {
-        const errMsg = await uploadRes.text();
-        throw new Error(`Gagal upload file: ${errMsg}`);
-      }
+      if (!uploadRes.ok) throw new Error("Gagal upload file asal");
+
+      const uploadData = await uploadRes.json();
+      const uploadedFile = uploadData.files[0];
+
+      (transformed as any).sourceFileId = uploadedFile.id; 
     }
 
     setResults(collected);
+
   } catch (err: any) {
-    console.error(err);
+    console.error("Error di handleSubmit:", err);
     setError(err?.message || "Terjadi kesalahan saat mengunggah.");
   } finally {
     setIsLoading(false);
   }
 };
 
-  const handleManualEdit = (
-    resultIndex: number,
-    fieldName: keyof RopaData,
-    newValue: string
-  ) => {
-    const newResults = [...results];
-    if (fieldName in newResults[resultIndex]) {
-      const targetCell = newResults[resultIndex][fieldName] as RopaCell;
-      if (targetCell) {
-        targetCell.value = newValue;
-        targetCell.source = "manual";
-        setResults(newResults);
-      }
-    }
-  };
+const handleDownloadExcel = async () => {
+  if (results.length === 0) return;
 
-  const handleDownloadExcel = async () => {
-    if (results.length === 0) return;
+  try {
+    const response = await fetch("/api/excel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: results }),
+    });
 
-    try {
-      const response = await fetch("/api/excel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: results }),
-      });
+    if (!response.ok) throw new Error("Gagal membuat file Excel");
 
-      if (!response.ok) throw new Error("Gagal membuat file Excel");
+    const blob = await response.blob();
+    const excelFile = new File([blob], "Hasil_Analisis_RoPA.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "Hasil_Analisis_RoPA.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
-      alert("Terjadi kesalahan saat mengunduh Excel dari server");
-    }
-  };
+    const recordForm = new FormData();
+    recordForm.append("chatSessionId", sessionId);
+    recordForm.append("sourceFileId", results[0]?.sourceFileId || "");
+    recordForm.append("finalJson", JSON.stringify(results));
+    recordForm.append("file", excelFile);
+
+    const recordRes = await fetch("/api/records", {
+      method: "POST",
+      body: recordForm,
+    });
+
+    if (!recordRes.ok) throw new Error("Gagal menyimpan record");
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Hasil_Analisis_RoPA.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    console.log("Excel final tersimpan + didownload user");
+  } catch (err: any) {
+    console.error("Error di handleDownloadExcel:", err);
+    alert(err?.message || "Terjadi kesalahan saat menyimpan/download Excel.");
+  }
+};
 
 const handleChatSubmit = async (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
@@ -431,36 +390,49 @@ const handleChatSubmit = async (e: FormEvent<HTMLFormElement>) => {
     const response = await fetch("/api/brainstorming", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: chatInput, context: results }),
+      body: JSON.stringify({
+        question: chatInput,
+        context: results,
+      }),
     });
 
-    if (!response.ok) throw new Error("Gagal mendapatkan respons dari AI.");
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gagal respons dari AI. Server said: ${errText}`);
+    }
 
     const res = await response.json();
+
     const aiMessage: ChatMessage = { sender: "ai", text: res.answer };
     setChatHistory((prev) => [...prev, aiMessage]);
+
+    await fetch("/api/brainstorming-db", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,       
+        question: chatInput,
+        answer: res.answer, 
+        updatedData: res.updatedData || [],
+      }),
+    });
 
     if (res.updatedData && Array.isArray(res.updatedData)) {
       const newResults = JSON.parse(JSON.stringify(results));
 
-      res.updatedData.forEach(
-        (update: { fileName: string; field: string; value: string }) => {
-          const resultIndex = newResults.findIndex(
-            (r) =>
-              r.fileName.toLowerCase().trim() ===
-              update.fileName.toLowerCase().trim()
-          );
-
-          if (resultIndex !== -1) {
-            const fieldName = update.field as keyof RopaData;
-            const targetCell = newResults[resultIndex][fieldName] as RopaCell;
-            if (targetCell) {
-              targetCell.value = update.value;
-              targetCell.source = "ai";
-            }
+      res.updatedData.forEach((update: { fileName: string; field: string; value: string }) => {
+        const resultIndex = newResults.findIndex(
+          (r) => r.fileName.toLowerCase().trim() === update.fileName.toLowerCase().trim()
+        );
+        if (resultIndex !== -1) {
+          const fieldName = update.field as keyof RopaData;
+          const targetCell = newResults[resultIndex][fieldName] as RopaCell;
+          if (targetCell) {
+            targetCell.value = update.value;
+            targetCell.source = "ai";
           }
         }
-      );
+      });
 
       setResults(newResults);
     }
@@ -520,7 +492,6 @@ const handleChatSubmit = async (e: FormEvent<HTMLFormElement>) => {
 
 function toLineFromObject(o: any): string {
   if (!o || typeof o !== "object") return "";
-  // Prioritaskan key yang sering muncul
   const preferred = [
     "note", "catatan", "saran", "recommendation", "rekomendasi",
     "message", "text", "reason", "alasan", "detail", "value", "desc"
@@ -531,7 +502,6 @@ function toLineFromObject(o: any): string {
   if (typeof o.field === "string" && typeof o.reason === "string") {
     return `[${o.field}] ${o.reason}`;
   }
-  // fallback: gabungkan beberapa pasangan key:value
   const keys = Object.keys(o).slice(0, 3);
   if (keys.length) {
     return keys

@@ -27,7 +27,6 @@ export default function StartPage() {
 
       const data = await res.json();
 
-      // Redirect ke workspace dengan session id
       router.push(`/chat/${data.id}`);
     } catch (error) {
       console.error(error);

@@ -17,7 +17,7 @@ export async function GET() {
     console.log(`✅ [GET] Fetched ${sessions.length} sessions successfully`);
     return NextResponse.json(sessions, { status: 200 });
   } catch (error: any) {
-    console.error("❌ [GET] Error fetching chat sessions:", error);
+    console.error("[GET] Error fetching chat sessions:", error);
     return NextResponse.json(
       {
         error: "Failed to fetch chat sessions",
@@ -34,10 +34,10 @@ export async function POST(req: Request) {
     console.log("🔹 [POST] Incoming request to create chat session");
 
     const body = await req.json();
-    console.log("📥 [POST] Request body:", body);
+    console.log("[POST] Request body:", body);
 
     const parsed = createChatSessionSchema.parse(body);
-    console.log("✅ [POST] Parsed body after validation:", parsed);
+    console.log("[POST] Parsed body after validation:", parsed);
 
     const newSession = await prisma.chatSession.create({
       data: {
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json(newSession, { status: 201 });
 
   } catch (error: any) {
-    console.error("❌ [POST] Error creating chat session:", error);
+    console.error("[POST] Error creating chat session:", error);
 
     return NextResponse.json(
       {
