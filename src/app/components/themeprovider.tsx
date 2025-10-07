@@ -27,7 +27,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
         onClick={() => setTheme(theme === "light" ? "dark" : "light")}
         className="absolute top-4 right-4 z-50 rounded-lg border border-border px-3 py-1.5 bg-muted text-foreground hover:bg-accent transition"
       >
-        {theme === "light" ? "🌙 Dark" : "☀️ Light"}
+        {theme === "light" ? "🌙" : "☀️"}
       </button>
 
       {children}

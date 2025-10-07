@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, FormEvent, ChangeEvent, DragEvent } from "react";
+import { useState, useEffect, useRef, FormEvent, ChangeEvent, DragEvent } from "react";
 import { useParams } from "next/navigation";
+
 
 interface RopaCell {
   value: string | null;
@@ -533,6 +534,18 @@ function normalizeSaran(input: any): string[] {
   }
   return [String(input)];
 }
+
+const [sessionData, setSessionData] = useState<any>(null);
+
+useEffect(() => {
+  if (sessionId) {
+    fetch(`/api/chat-sessions/${sessionId}`)
+      .then(res => res.json())
+      .then(data => {
+        setSessionData(data);
+      });
+  }
+}, [sessionId]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 font-sans">
