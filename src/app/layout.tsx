@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "./components/sidebar";
 import { useState } from "react";
+import ThemeProvider from "./components/themeprovider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,20 +24,24 @@ export default function RootLayout({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <html lang="en" className="dark">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <div className="flex h-screen">
-          <aside
-            className={`transition-all duration-300 ease-in-out bg-sidebar text-sidebar-foreground 
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <ThemeProvider>
+          <div className="flex h-screen">
+            <aside
+              className={`transition-all duration-300 ease-in-out bg-[#0f0f0f] text-white 
               ${collapsed ? "w-16" : "w-64"}`}
-          >
-            <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
-          </aside>
+            >
+              <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
+            </aside>
 
-          <main className="flex-1 transition-all duration-300 ease-in-out bg-background text-foreground p-6 overflow-y-auto">
-            {children}
-          </main>
-        </div>
+            <main className="flex-1 transition-all duration-300 ease-in-out bg-background text-foreground p-6 overflow-y-auto">
+              {children}
+            </main>
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );
