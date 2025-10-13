@@ -6,8 +6,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { sessionId, question, answer, updatedData } = body;
 
-    console.log("📥 Incoming Brainstorm:", body);
-
     if (!sessionId || !question || !answer) {
       return NextResponse.json(
         { error: "sessionId, question, dan answer diperlukan" },
@@ -24,14 +22,8 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log("Brainstorm saved:", brainstorm);
-
-    return NextResponse.json(
-      { message: "Brainstorm berhasil disimpan", brainstorm },
-      { status: 201 }
-    );
+    return NextResponse.json({ brainstorm }, { status: 201 });
   } catch (error: any) {
-    console.error("Error saving brainstorm:", error);
     return NextResponse.json(
       { error: "Failed to save brainstorm", message: error.message },
       { status: 500 }

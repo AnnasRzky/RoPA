@@ -538,14 +538,59 @@ function normalizeSaran(input: any): string[] {
 const [sessionData, setSessionData] = useState<any>(null);
 
 useEffect(() => {
-  if (sessionId) {
-    fetch(`/api/chat-sessions/${sessionId}`)
-      .then(res => res.json())
-      .then(data => {
-        setSessionData(data);
-      });
-  }
+  if (!sessionId) return;
+
+  fetch(`/api/chat-sessions/${sessionId}`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (data?.error) return;
+
+      setSessionData(data);
+
+      if (data.uploadedFiles?.length > 0) {
+        const restoredFiles = data.uploadedFiles.map((f: any) => ({
+          file: {
+            name: f.fileName,
+            type: f.fileType || "application/pdf",
+          } as File,
+          preview: f.fileUrl,
+        }));
+        setFiles(restoredFiles);
+      }
+
+      if (data.records?.length > 0) {
+        const restoredResults = data.records.flatMap((record: any) => {
+          try {
+            const parsed = JSON.parse(record.finalJson || "[]");
+            return parsed.map((item: any) => ({
+              ...item,
+              fileName: record.sourceFile?.fileName || record.fileName,
+            }));
+          } catch {
+            return [];
+          }
+        });
+        setResults(restoredResults);
+      }
+
+      if (data.brainstorms?.length > 0) {
+        const restoredChats: ChatMessage[] = [...data.brainstorms]
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          )
+          .flatMap((b) => [
+            { sender: "user" as const, text: b.question || "" },
+            { sender: "ai" as const, text: b.answer || "" },
+          ]);
+
+        setChatHistory(restoredChats);
+      }
+    })
+    .catch(() => {});
 }, [sessionId]);
+
+
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 font-sans">

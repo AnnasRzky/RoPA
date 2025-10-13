@@ -66,6 +66,8 @@ model Record {
   analyzedAt    DateTime     @default(now())
   data          Json         
 
+  finalJson      String?
+
   createdAt     DateTime     @default(now())
 
   chatSessionId String
